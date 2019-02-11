@@ -49,11 +49,4 @@ void decode_one_pkt(RKMPPCodecContext *mpp_ctx);
 
 float decoder_fps();
 
-/*
- * Get a frame from decoder
- * DON'T free the memory outside
- */
-frame_st* decoder_frame();
-
-
 #endif // MPPDECODER_H
