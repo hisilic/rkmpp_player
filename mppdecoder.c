@@ -35,16 +35,11 @@ RK_U64          frame_err = 0;
 RK_U64 fps_ms;
 RK_U32 fps_counter;
 float fps = 0.0;
-/* Output buffer */
-pthread_mutex_t frames_lock;
-frame_st* frames[MAX_BUFFER_FRAMES];
-RK_U32  frames_r, frames_w;
+
 MppApi *mpi;
 MppCtx ctx;
 
 //RK_U32          pkt_eos;
-
-void put_frame(RK_U64 ms, RK_U8* buf, RK_U32 width, RK_U32 heigth, RK_U32 h_stride, RK_U32 v_stride, size_t bsz);
 
 int rkmpp_decoder_init(RKMPPCodecContext *mpp_ctx)
 {
@@ -84,10 +79,6 @@ int rkmpp_decoder_init(RKMPPCodecContext *mpp_ctx)
 
     fps_ms = current_ms();
     fps_counter = 0;
-
-    pthread_mutex_init(&frames_lock, NULL);
-    frames_r = frames_w = 0;
-    memset(frames, 0, sizeof(frames));
 
     return 0;
 }
@@ -247,7 +238,7 @@ void decode_one_pkt(RKMPPCodecContext *mpp_ctx)
                 get_frm = 1;
             }
 
-			/* TBD */
+            /* TBD */
             // if last packet is send but last frame is not found continue
             //if (pkt_eos && pkt_done && !frm_eos) {
             //    msleep(MPP_H264_DECODE_TIMEOUT);
@@ -274,51 +265,6 @@ void decode_one_pkt(RKMPPCodecContext *mpp_ctx)
         msleep(MPP_H264_DECODE_TIMEOUT);
 
     } while (1);
-}
-
-
-void put_frame(RK_U64 ms, RK_U8* buf, RK_U32 width, RK_U32 height, RK_U32 h_stride, RK_U32 v_stride, size_t bsz)
-{
-    if (pthread_mutex_lock(&frames_lock)) {
-        return;
-    }
-
-    if (frames[frames_w] == NULL) {
-        frames[frames_w] = (frame_st*)malloc(sizeof(frame_st));
-    }
-    frames[frames_w]->cap_ms = ms;
-    frames[frames_w]->width = width;
-    frames[frames_w]->height = height;
-    frames[frames_w]->h_stride = h_stride;
-    frames[frames_w]->v_stride = v_stride;
-    memcpy(frames[frames_w]->data, buf, bsz>FRAME_SIZE?FRAME_SIZE:bsz);
-    // Read & Write position adjustion
-    frames_w++;
-    if (frames_w >= MAX_BUFFER_FRAMES) frames_w = 0;
-    if (frames_r == frames_w) {
-        frame_discards++;
-        // Discard the oldest frame
-        frames_r++;
-        if (frames_r >= MAX_BUFFER_FRAMES) frames_r = 0;
-    }
-
-    pthread_mutex_unlock(&frames_lock);
-}
-
-frame_st* decoder_frame()
-{
-    frame_st* res = NULL;
-    if (pthread_mutex_trylock(&frames_lock)) {
-        return NULL;
-    }
-    if (frames_r != frames_w) {
-        res = frames[frames_r];
-        frames_r++;
-        if (frames_r >= MAX_BUFFER_FRAMES)
-            frames_r = 0;
-    }
-    pthread_mutex_unlock(&frames_lock);
-    return res;
 }
 
 float decoder_fps() {
